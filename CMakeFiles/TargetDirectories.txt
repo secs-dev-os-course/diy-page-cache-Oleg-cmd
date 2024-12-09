@@ -1,0 +1,15 @@
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/diy_cache.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/app.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/optimal.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/search_benchmark.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/linreg_benchmark.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/pure_search_benchmark.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/pure_linreg_benchmark.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/test_storage.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/test.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/edit_cache.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/rebuild_cache.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/list_install_components.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/install.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/install/local.dir
+/home/ubuntu/diy-page-cache-Oleg-cmd/CMakeFiles/install/strip.dir
