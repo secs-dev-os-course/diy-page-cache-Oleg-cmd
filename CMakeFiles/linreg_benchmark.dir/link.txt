@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/linreg_benchmark.dir/src/benchmarks/linreg_ex.cpp.o CMakeFiles/linreg_benchmark.dir/src/benchmarks/linreg_benchmark.cpp.o -o linreg_benchmark  libdiy_cache.a 

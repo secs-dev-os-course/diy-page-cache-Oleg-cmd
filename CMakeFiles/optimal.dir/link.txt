@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/optimal.dir/src/app/optimal.cpp.o CMakeFiles/optimal.dir/src/benchmarks/search_benchmark.cpp.o CMakeFiles/optimal.dir/src/benchmarks/linreg_benchmark.cpp.o -o optimal  libdiy_cache.a 

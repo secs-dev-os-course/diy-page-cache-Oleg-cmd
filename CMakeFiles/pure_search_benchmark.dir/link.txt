@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/pure_search_benchmark.dir/src/benchmarks/pure_search_benchmark.cpp.o -o pure_search_benchmark 

@@ -1,2 +1,0 @@
-/usr/bin/ar qc libdiy_cache.a CMakeFiles/diy_cache.dir/src/diy_cache/cache.cpp.o CMakeFiles/diy_cache.dir/src/diy_cache/lab2_api.cpp.o CMakeFiles/diy_cache.dir/src/diy_cache/page.cpp.o CMakeFiles/diy_cache.dir/src/diy_cache/storage.cpp.o
-/usr/bin/ranlib libdiy_cache.a

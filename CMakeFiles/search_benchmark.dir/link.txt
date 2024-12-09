@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/search_benchmark.dir/src/benchmarks/search_ex.cpp.o CMakeFiles/search_benchmark.dir/src/benchmarks/search_benchmark.cpp.o -o search_benchmark  libdiy_cache.a 
