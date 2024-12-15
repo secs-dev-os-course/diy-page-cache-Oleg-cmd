@@ -123,12 +123,22 @@ void RunBenchmarks()
 {
   std::vector<size_t> page_sizes = {32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384};
   std::vector<size_t> cache_sizes = {2, 5, 10, 20, 50, 100, 200, 500};
-  std::vector<size_t> block_sizes = {32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
+  std::vector<size_t> block_sizes = {512, 1024, 2048, 4096, 8192};
   int iterations = 100;
   std::size_t num_points = 10000;
   std::size_t num_elements = 10000;
   int min_value = 0;
   int max_value = 20000;
+
+    for (auto& size : page_sizes)
+    {
+        size = ((size + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE;
+    }
+    for (auto& size : block_sizes)
+    {
+        size = ((size + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE;
+    }
+
 
   std::vector<BenchmarkResult> linear_regression_results;
   std::vector<BenchmarkResult> search_benchmark_results;

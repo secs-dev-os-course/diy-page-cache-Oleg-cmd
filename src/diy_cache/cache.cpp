@@ -2,7 +2,7 @@
 #include <diy_cache/storage.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
+#include <stdexcept>
 #include <algorithm>
 #include <cstring>
 
@@ -10,22 +10,25 @@
 #include <iostream>
 #endif
 
-#ifdef DEBUG_CACHE
-#define LOG(message) std::cerr << "[Cache] " << message << std::endl
-#else
-#define LOG(message)
-#endif
 
 Cache::Cache(PageSize pageSize, CacheSize cacheSize)
-    : cacheSize(cacheSize), pageSize(pageSize)
+    : cacheSize(cacheSize), 
+      pageSize(pageSize),
+      hits(0),
+      misses(0)
 {
-  LOG("Constructor: cacheSize=" << cacheSize.getValue()
-                                << ", pageSize=" << pageSize.getValue());
+    if (pageSize.getValue() % BLOCK_SIZE != 0) {
+        throw std::invalid_argument("Page size must be a multiple of BLOCK_SIZE");
+    }
+    
+    LOG("Constructor: cacheSize=" << cacheSize.getValue()
+                               << ", pageSize=" << pageSize.getValue());
 }
 
 Cache::~Cache() {
     pageMap.clear();
 }
+
 
 auto Cache::read(Storage* storage, void* buf, size_t count,
                  off_t offset) -> ssize_t
@@ -35,53 +38,39 @@ auto Cache::read(Storage* storage, void* buf, size_t count,
 
   ssize_t totalBytesRead = 0;
   char* charBuf = static_cast<char*>(buf);
+  
+  off_t current_offset = offset;
 
-  // Получаем страницу из кэша
   while (count > 0)
   {
-    Page* page = getPage(storage, offset);
+    LOG("Cache::read: loop start, current_offset=" << current_offset << ", count=" << count);  
+    Page* page = getPage(storage, current_offset);
     if (!page)
     {
       LOG("read: Error getting page");
       return -1;
     }
 
-    if (offset < 0)
+    if (current_offset < 0)
     {
       LOG("Error: Negative offset encountered");
       return -1;
     }
 
     size_t offsetInPage =
-        static_cast<size_t>(static_cast<size_t>(offset) % pageSize.getValue());
+        static_cast<size_t>(static_cast<size_t>(current_offset) % pageSize.getValue());
     size_t bytesToRead = std::min({count, pageSize.getValue() - offsetInPage,
                                    page->getPageSize() - offsetInPage});
-
-    struct stat st;
-    off_t fileSize;
-    if (fstat(storage->getFd(), &st) == 0)
-    {
-      fileSize = st.st_size;
+   
+    if(bytesToRead == 0){
+        LOG("Cache::read: break condition, bytesToRead=" << bytesToRead);
+        break;
     }
-    else
-    {
-      perror("fstat failed");
-      return -1;
-    }
-
-    if (offset >= fileSize)
-    {
-      return 0; // Если смещение больше размера файла, ничего не читаем
-    }
-
-    bytesToRead = std::min(bytesToRead, static_cast<size_t>(fileSize - offset));
-
     LOG("Cache::read: Reading from page at offset "
         << page->getOffset() << ", offsetInPage=" << offsetInPage
         << ", bytesToRead=" << bytesToRead);
 
-    std::copy(page->getData() + offsetInPage,
-              page->getData() + offsetInPage + bytesToRead, charBuf);
+   memcpy(charBuf, page->getData() + offsetInPage, bytesToRead);
 
     LOG("Cache::read: Copied " << bytesToRead << " bytes to buffer at address "
                                << static_cast<void*>(charBuf));
@@ -92,182 +81,163 @@ auto Cache::read(Storage* storage, void* buf, size_t count,
 
     totalBytesRead += bytesToRead;
     count -= bytesToRead;
-    offset += bytesToRead;
+    current_offset += bytesToRead;
+    
+    LOG("Cache::read: loop end, totalBytesRead=" << totalBytesRead << ", current_offset=" << current_offset << ", count=" << count);  
   }
 
   LOG("read: Read " << totalBytesRead << " bytes");
   return totalBytesRead;
 }
 
-ssize_t Cache::write(Storage* storage, const void* buf, size_t count,
-                     off_t offset)
-{
-  LOG("write: fd=" << storage->getFd() << ", offset=" << offset
-                   << ", count=" << count);
+ssize_t Cache::write(Storage* storage, const void* buf, size_t count, off_t offset) {
+    if (!storage || !buf || count == 0) return -1;
 
-  Page* page = getPage(storage, offset);
-  if (!page)
-  {
-    LOG("write: Error getting page");
-    return -1;
-  }
+    Page* page = getPage(storage, offset);
+    if (!page) return -1;
 
-  size_t offsetInPage =
-      static_cast<size_t>(static_cast<size_t>(offset) % pageSize.getValue());
-  size_t bytesToWrite = std::min(count, pageSize.getValue() - offsetInPage);
-
-  std::memcpy(page->getData() + offsetInPage, buf, bytesToWrite);
-
-  page->setDirty(true); // Помечаем страницу как грязную
-  page->setAccessed(true);
-
-  LOG("write: Wrote " << bytesToWrite
-                      << " bytes, page size=" << page->getPageSize()
-                      << ", offsetInPage=" << offsetInPage);
-
-  return static_cast<ssize_t>(bytesToWrite);
+    size_t bytes_to_write = std::min(count, page->getPageSize());
+    memcpy(page->getData(), buf, bytes_to_write);
+    
+    page->setDirty(true);
+    
+    return storage->write(offset, page->getData(), page->getPageSize());
 }
+
+
 
 int Cache::sync(Storage* storage)
 {
-  LOG("sync: fd=" << storage->getFd() << ", num pages=" << pageList.size());
-  // int dirtyPages = 0;
+    LOG("sync: fd=" << storage->getFd() << ", num pages=" << pageList.size());
 
-  for (auto& page : pageList)
-  {
-    if (page.isDirty())
+    for (auto& page : pageList)
     {
-      // dirtyPages++;
-      LOG("sync: Writing dirty page, offset=" << page.getOffset() << ", size="
-                                              << page.getPageSize());
+        if (page.isDirty())
+        {
+            size_t aligned_size = ((pageSize.getValue() + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE;
+            void* aligned_buf = nullptr;
+            
+            if (posix_memalign(&aligned_buf, BLOCK_SIZE, aligned_size) != 0) {
+                LOG("sync: Failed to allocate aligned memory");
+                return -1;
+            }
 
-      ssize_t bytesWritten =
-          storage->write(page.getOffset(), page.getData(), page.getPageSize());
+            std::memcpy(aligned_buf, page.getData(), aligned_size);
+            
+            LOG("sync: Writing dirty page, offset=" << page.getOffset());
+            ssize_t bytesWritten = storage->write(page.getOffset(), aligned_buf, aligned_size);
+            free(aligned_buf);
 
-      if (bytesWritten == -1)
-      {
-        LOG("sync: Error writing dirty page, errno: " << strerror(errno));
-        return -1;
-      }
+            if (bytesWritten < 0)
+            {
+                LOG("sync: Error writing dirty page: " << strerror(errno));
+                return bytesWritten;
+            }
 
-      LOG("sync: Bytes written: " << bytesWritten);
-
-      page.setDirty(false);
+            page.setDirty(false);
+        }
     }
-  }
-  LOG("sync: Synced " << " dirty pages");
-  return 0;
+    
+    if (fsync(storage->getFd()) != 0) {
+        LOG("sync: fsync failed: " << strerror(errno));
+        return -errno;
+    }
+
+    return 0;
 }
 
 Page* Cache::getPage(Storage* storage, off_t offset)
 {
-  off_t pageOffset = static_cast<off_t>(
-      static_cast<size_t>(offset) / static_cast<size_t>(pageSize.getValue()) *
-      pageSize.getValue());
-
-  LOG("getPage: fd=" << storage->getFd() << ", offset=" << offset
-                     << ", pageOffset=" << pageOffset);
-
-  auto it = pageMap.find(pageOffset);
-  if (it != pageMap.end())
-  {
-    LOG("getPage: Page found in cache");
-
-    pageList.splice(pageList.end(), pageList, it->second);
-    pageMap[pageOffset] = std::prev(pageList.end());
-
-    return &(*pageMap[pageOffset]);
-  }
-
-  LOG("getPage: Page not found in cache");
-
-  if (pageList.size() >= cacheSize.getValue())
-  {
-    LOG("getPage: Cache full, evicting");
-    evict(storage);
-  }
-
-  pageList.emplace_back(pageSize.getValue());
-  Page* newPage = &pageList.back();
-
-  LOG("getPage: Reading from storage at offset " << pageOffset);
-  ssize_t bytesRead =
-      storage->read(pageOffset, newPage->getData(), pageSize.getValue());
-
-  if (bytesRead == ssize_t(-1))
-  {
-    LOG("getPage: Error reading from storage, errno: " << strerror(errno));
-    pageList.pop_back();
-    return nullptr;
-  }
-
-  if (static_cast<ssize_t>(bytesRead) <
-      static_cast<ssize_t>(pageSize.getValue()))
-  {
-    if (bytesRead < 0)
-    {
-      LOG("Error: Negative bytesRead encountered");
-      return nullptr;
+    auto it = pageMap.find(offset);
+    if (it != pageMap.end()) {
+        hits++;
+        return &(*it->second);
     }
-    std::memset(newPage->getData() + bytesRead, 0,
-                static_cast<size_t>(pageSize.getValue()) -
-                    static_cast<size_t>(bytesRead));
-  }
-
-  newPage->setOffset(pageOffset);
-  pageMap[pageOffset] = std::prev(pageList.end());
-
-  LOG("getPage: Page loaded from storage, size=" << newPage->getPageSize());
-
-  return newPage;
+    
+    misses++;
+    
+    if (pageList.size() >= cacheSize.getValue()) {
+        evict(storage);
+    }
+    
+    pageList.emplace_back(pageSize.getValue());
+    Page* page = &pageList.back();
+    
+    ssize_t bytes_read = storage->read(offset, page->getData(), page->getPageSize());
+    if (bytes_read < 0) {
+        pageList.pop_back();
+        return nullptr;
+    }
+    
+    page->setOffset(offset);
+    pageMap[offset] = std::prev(pageList.end());
+    
+    return page;
 }
+
+
 
 void Cache::evict(Storage* storage)
 {
-  LOG("evict: fd=" << storage->getFd() << ", cache size=" << pageList.size());
+    LOG("evict: fd=" << storage->getFd() << ", cache size=" << pageList.size());
 
-  for (auto it = pageList.begin(); it != pageList.end(); ++it)
-  {
-    if (!it->isAccessed())
+    for (auto it = pageList.begin(); it != pageList.end(); ++it)
     {
-      if (it->isDirty())
-      {
-        LOG("evict: Writing dirty page at offset " << it->getOffset());
-        if (storage->write(it->getOffset(), it->getData(), it->getPageSize()) ==
-            -1)
+        if (!it->isAccessed())
         {
-          LOG("evict: Error writing dirty page");
+            if (it->isDirty())
+            {
+                LOG("evict: Writing dirty page at offset " << it->getOffset());
+                
+                size_t aligned_size = ((pageSize.getValue() + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE;
+                
+                if (!Storage::checkAlignment(it->getData(), it->getOffset(), aligned_size)) {
+                    void* aligned_buf = nullptr;
+                    if (posix_memalign(&aligned_buf, BLOCK_SIZE, aligned_size) == 0) {
+                        std::memcpy(aligned_buf, it->getData(), aligned_size);
+                        storage->write(it->getOffset(), aligned_buf, aligned_size);
+                        free(aligned_buf);
+                    }
+                } else {
+                    storage->write(it->getOffset(), it->getData(), aligned_size);
+                }
+                
+                it->setDirty(false);
+            }
+
+            LOG("evict: Evicting page at offset " << it->getOffset());
+            pageMap.erase(it->getOffset());
+            pageList.erase(it);
+            return;
         }
-        it->setDirty(false);
-      }
-
-      LOG("evict: Evicting page at offset " << it->getOffset());
-      pageMap.erase(it->getOffset());
-      pageList.erase(it);
-      return;
+        else
+        {
+            it->setAccessed(false);
+        }
     }
-    else
+
+    auto it = pageList.begin();
+    if (it->isDirty())
     {
-      it->setAccessed(false);
+        size_t aligned_size = ((pageSize.getValue() + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE;
+        
+        if (!Storage::checkAlignment(it->getData(), it->getOffset(), aligned_size)) {
+            void* aligned_buf = nullptr;
+            if (posix_memalign(&aligned_buf, BLOCK_SIZE, aligned_size) == 0) {
+                std::memcpy(aligned_buf, it->getData(), aligned_size);
+                storage->write(it->getOffset(), aligned_buf, aligned_size);
+                free(aligned_buf);
+            }
+        } else {
+            storage->write(it->getOffset(), it->getData(), aligned_size);
+        }
     }
-  }
 
-  // Если все страницы были accessed, вытесняем первую
-  auto it = pageList.begin();
-  if (it->isDirty())
-  {
-    LOG("evict: All pages accessed. Writing dirty page at offset "
-        << it->getOffset());
-    if (storage->write(it->getOffset(), it->getData(), it->getPageSize()) == -1)
-    {
-      LOG("evict: Error writing dirty page");
-    }
-  }
-
-  LOG("evict: Evicting page at offset " << it->getOffset());
-  pageMap.erase(it->getOffset());
-  pageList.pop_front();
+    LOG("evict: Evicting page at offset " << it->getOffset());
+    pageMap.erase(it->getOffset());
+    pageList.pop_front();
 }
+
 
 void Cache::close(Storage* storage)
 {

@@ -65,9 +65,9 @@ int main(int argc, char* argv[])
     total_time += elapsed.count();
   }
 
-  std::cout << "Benchmark complete.\n";
-  std::cout << "Average search time: " << (total_time / iterations)
-            << " seconds.\n";
+  std::cout << "[BENCHMARK COMPLETE] Average execution time: " << std::fixed
+  << std::setprecision(7) << (total_time / iterations)
+  << " seconds.\n";
 
   lab2_close(fd);
   std::remove(TEMP_FILENAME.c_str());

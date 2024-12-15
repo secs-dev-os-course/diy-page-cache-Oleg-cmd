@@ -12,6 +12,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <sys/stat.h>
 
 std::string GenerateUniqueFilenameS()
 {
@@ -51,43 +52,41 @@ void GenerateRandomData(const std::string& filename, std::size_t num_elements,
   lab2_close(fd);
 }
 
+
 bool SearchElementInFileBlock(int fd, int target, std::size_t blockSize)
 {
-  std::vector<int> buffer(blockSize / sizeof(int));
+    if (lab2_lseek(fd, 0, SEEK_SET) < 0) {
+        return false;
+    }
+    
+    std::vector<int> buffer(blockSize / sizeof(int));
+    struct stat st;
+    // if (fstat(g_storages[fd]->getFd(), &st) < 0) {
+    //     return false;
+    // }
+    
+    size_t file_size = st.st_size;
+    size_t bytes_read = 0;
+    
+    while (bytes_read < file_size)
+    {
+        ssize_t bytesRead = lab2_read(fd, buffer.data(), blockSize);
+        if (bytesRead <= 0) {
+            break;
+        }
 
-  off_t offset = 0;
-  while (true)
-  {
-    ssize_t bytesRead = lab2_read(fd, buffer.data(), blockSize);
-    if (bytesRead == ssize_t(-1))
-    {
-      perror("lab2_read failed");
-      return false;
+        std::size_t elementsRead = bytesRead / sizeof(int);
+        for (std::size_t i = 0; i < elementsRead; ++i)
+        {
+            if (buffer[i] == target)
+            {
+                return true;
+            }
+        }
+        
+        bytes_read += bytesRead;
     }
-    if (bytesRead == 0)
-    {
-      return false;
-    }
-
-    std::size_t elementsRead = 0;
-    if (bytesRead >= 0)
-    {
-      elementsRead = static_cast<std::size_t>(bytesRead) / sizeof(int);
-    }
-    else
-    {
-      std::cerr << "Error: bytesRead is negative!" << std::endl;
-      return false;
-    }
-
-    for (std::size_t i = 0; i < elementsRead; ++i)
-    {
-      if (buffer[i] == target)
-      {
-        return true;
-      }
-    }
-
-    offset += bytesRead;
-  }
+    
+    return false;
 }
+

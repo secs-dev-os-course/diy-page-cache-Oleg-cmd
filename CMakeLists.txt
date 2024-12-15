@@ -33,8 +33,8 @@ target_include_directories(diy_cache PUBLIC include) # Make headers available to
 add_executable(app src/app/app.cpp)
 target_link_libraries(app diy_cache)
 
-add_executable(optimal src/app/optimal.cpp src/benchmarks/search_benchmark.cpp src/benchmarks/linreg_benchmark.cpp)
-target_link_libraries(optimal diy_cache)
+add_executable(optimize src/app/optimize.cpp src/benchmarks/search_benchmark.cpp src/benchmarks/linreg_benchmark.cpp)
+target_link_libraries(optimize diy_cache)
 
 add_executable(search_benchmark src/benchmarks/search_ex.cpp src/benchmarks/search_benchmark.cpp)
 target_link_libraries(search_benchmark diy_cache)

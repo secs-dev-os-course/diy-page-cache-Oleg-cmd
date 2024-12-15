@@ -71,9 +71,9 @@ int main(int argc, char* argv[])
     std::chrono::duration<double> elapsed = end - start;
     total_time += elapsed.count();
 
-    std::cout << "[ITERATION " << (i + 1) << "] Execution time: " << std::fixed
-              << std::setprecision(7) << elapsed.count() << " seconds."
-              << std::endl;
+    // std::cout << "[ITERATION " << (i + 1) << "] Execution time: " << std::fixed
+    //           << std::setprecision(7) << elapsed.count() << " seconds."
+    //           << std::endl;
   }
 
   std::cout << "[BENCHMARK COMPLETE] Average execution time: " << std::fixed
