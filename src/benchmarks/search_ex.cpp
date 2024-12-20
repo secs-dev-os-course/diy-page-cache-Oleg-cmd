@@ -66,8 +66,8 @@ int main(int argc, char* argv[])
   }
 
   std::cout << "[BENCHMARK COMPLETE] Average execution time: " << std::fixed
-  << std::setprecision(7) << (total_time / iterations)
-  << " seconds.\n";
+            << std::setprecision(7) << (total_time / iterations)
+            << " seconds.\n";
 
   lab2_close(fd);
   std::remove(TEMP_FILENAME.c_str());

@@ -1,6 +1,7 @@
 // search_benchmark.cpp
 #include <benchmarks/search_benchmark.h>
 #include <diy_cache/lab2_api.h>
+#include <sys/stat.h>
 
 #include <chrono>
 #include <cstdio>
@@ -12,7 +13,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <sys/stat.h>
 
 std::string GenerateUniqueFilenameS()
 {
@@ -52,41 +52,41 @@ void GenerateRandomData(const std::string& filename, std::size_t num_elements,
   lab2_close(fd);
 }
 
-
 bool SearchElementInFileBlock(int fd, int target, std::size_t blockSize)
 {
-    if (lab2_lseek(fd, 0, SEEK_SET) < 0) {
-        return false;
-    }
-    
-    std::vector<int> buffer(blockSize / sizeof(int));
-    struct stat st;
-    // if (fstat(g_storages[fd]->getFd(), &st) < 0) {
-    //     return false;
-    // }
-    
-    size_t file_size = st.st_size;
-    size_t bytes_read = 0;
-    
-    while (bytes_read < file_size)
-    {
-        ssize_t bytesRead = lab2_read(fd, buffer.data(), blockSize);
-        if (bytesRead <= 0) {
-            break;
-        }
-
-        std::size_t elementsRead = bytesRead / sizeof(int);
-        for (std::size_t i = 0; i < elementsRead; ++i)
-        {
-            if (buffer[i] == target)
-            {
-                return true;
-            }
-        }
-        
-        bytes_read += bytesRead;
-    }
-    
+  if (lab2_lseek(fd, 0, SEEK_SET) < 0)
+  {
     return false;
-}
+  }
 
+  std::vector<int> buffer(blockSize / sizeof(int));
+  struct stat st;
+  // if (fstat(g_storages[fd]->getFd(), &st) < 0) {
+  //     return false;
+  // }
+
+  size_t file_size = st.st_size;
+  size_t bytes_read = 0;
+
+  while (bytes_read < file_size)
+  {
+    ssize_t bytesRead = lab2_read(fd, buffer.data(), blockSize);
+    if (bytesRead <= 0)
+    {
+      break;
+    }
+
+    std::size_t elementsRead = bytesRead / sizeof(int);
+    for (std::size_t i = 0; i < elementsRead; ++i)
+    {
+      if (buffer[i] == target)
+      {
+        return true;
+      }
+    }
+
+    bytes_read += bytesRead;
+  }
+
+  return false;
+}
